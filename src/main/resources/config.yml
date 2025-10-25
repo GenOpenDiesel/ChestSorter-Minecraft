@@ -1,0 +1,16 @@
+# Click behavior
+enableClickTypeShiftRight: true
+
+# Which containers or inventories are sortable
+enableInventoryTypeChest: true
+enableInventoryTypeEnderChest: true
+enableInventoryTypeBarrel: true
+enableInventoryTypeShulker: true
+enableInventoryTypeDropper: true
+enableInventoryTypeDispenser: true
+enableInventoryTypePlayer: false
+
+# Messages
+# Use & color codes and the %container% placeholder.
+messages:
+  sorted: "&a%container% sorted!"

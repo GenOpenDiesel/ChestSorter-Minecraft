@@ -1,6 +1,6 @@
-// src/main/java/org/ch4rlesexe/chestSorterPlugin/ChestSorterPlugin.java
 package org.ch4rlesexe.chestSorterPlugin;
 
+import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.Location;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -17,52 +17,90 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.MapMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.io.File;
 import java.util.*;
 
 public class ChestSorterPlugin extends JavaPlugin {
 
-    private final FileConfiguration config = getConfig();
+    private FileConfiguration config;
 
     private static final List<ClickType> validClickTypes = new ArrayList<>();
-
     private static final List<InventoryType> validInventoryTypes = new ArrayList<>();
 
     @Override
     public void onEnable() {
-        loadConfig();
+        if (!new File(getDataFolder(), "config.yml").exists()) {
+            saveDefaultConfig();
+        }
+
+        reloadConfig();
+        this.config = getConfig();
+
+        loadTogglesFromConfig();
+
         getServer().getPluginManager().registerEvents(new ChestSortListener(), this);
         getLogger().info("ChestSorter enabled!");
-
     }
 
-    private void loadConfig() {
-        config.addDefault("enableClickTypeShiftRight", true);
-        config.addDefault("enableInventoryTypeChest", true);
-        config.addDefault("enableInventoryTypeEnderChest", true);
-        config.addDefault("enableInventoryTypeBarrel", true);
-        config.addDefault("enableInventoryTypeShulker", true);
-        config.addDefault("enableInventoryTypePlayer", false);
-        config.options().copyDefaults(true);
-        saveConfig();
-        this.saveDefaultConfig();
+    private void loadTogglesFromConfig() {
+        validClickTypes.clear();
+        validInventoryTypes.clear();
 
-        if (config.getBoolean("enableClickTypeShiftRight")) {
+        // Click toggles
+        if (config.getBoolean("enableClickTypeShiftRight", true)) {
             validClickTypes.add(ClickType.SHIFT_RIGHT);
         }
-        if (config.getBoolean("enableInventoryTypeChest")) {
+
+        // Container toggles
+        if (config.getBoolean("enableInventoryTypeChest", true)) {
             validInventoryTypes.add(InventoryType.CHEST);
         }
-        if (config.getBoolean("enableInventoryTypeEnderChest")) {
+        if (config.getBoolean("enableInventoryTypeEnderChest", true)) {
             validInventoryTypes.add(InventoryType.ENDER_CHEST);
         }
-        if (config.getBoolean("enableInventoryTypeBarrel")) {
+        if (config.getBoolean("enableInventoryTypeBarrel", true)) {
             validInventoryTypes.add(InventoryType.BARREL);
         }
-        if (config.getBoolean("enableInventoryTypeShulker")) {
+        if (config.getBoolean("enableInventoryTypeShulker", true)) {
             validInventoryTypes.add(InventoryType.SHULKER_BOX);
         }
-        if (config.getBoolean("enableInventoryTypePlayer")) {
+        if (config.getBoolean("enableInventoryTypeDropper", true)) {
+            validInventoryTypes.add(InventoryType.DROPPER);
+        }
+        if (config.getBoolean("enableInventoryTypeDispenser", true)) {
+            validInventoryTypes.add(InventoryType.DISPENSER);
+        }
+        if (config.getBoolean("enableInventoryTypePlayer", false)) {
             validInventoryTypes.add(InventoryType.PLAYER);
+        }
+    }
+
+    private String formatMessage(String path, String containerName) {
+        String raw = config.getString(path, "&a%container% sorted!");
+        raw = raw.replace("%container%", containerName);
+        return ChatColor.translateAlternateColorCodes('&', raw);
+    }
+
+    private static String toDisplayName(InventoryType type) {
+        switch (type) {
+            case CHEST: return "Chest";
+            case ENDER_CHEST: return "Ender Chest";
+            case BARREL: return "Barrel";
+            case SHULKER_BOX: return "Shulker Box";
+            case DROPPER: return "Dropper";
+            case DISPENSER: return "Dispenser";
+            case PLAYER: return "Player Inventory";
+            default:
+                String name = type.name().toLowerCase(Locale.ROOT).replace('_', ' ');
+                String[] parts = name.split(" ");
+                StringBuilder sb = new StringBuilder();
+                for (String p : parts) {
+                    if (p.isEmpty()) continue;
+                    sb.append(Character.toUpperCase(p.charAt(0)))
+                            .append(p.length() > 1 ? p.substring(1) : "")
+                            .append(' ');
+                }
+                return sb.toString().trim();
         }
     }
 
@@ -71,19 +109,23 @@ public class ChestSorterPlugin extends JavaPlugin {
         @EventHandler
         public void onInventoryClick(InventoryClickEvent event) {
             // ONLY trigger on configured click types
-            if(validClickTypes.stream().noneMatch(t -> t == event.getClick())) return;
+            if (validClickTypes.stream().noneMatch(t -> t == event.getClick())) return;
 
             if (!(event.getWhoClicked() instanceof Player)) return;
             Player player = (Player) event.getWhoClicked();
 
             Inventory topInv = event.getView().getTopInventory();
             if (event.getRawSlot() >= topInv.getSize()) return;
+
             // ONLY trigger on configured inventory types
-            if(validInventoryTypes.stream().noneMatch(t -> t == topInv.getType())) return;
+            if (validInventoryTypes.stream().noneMatch(t -> t == topInv.getType())) return;
 
             event.setCancelled(true);
             sortInventory(topInv);
-            player.sendMessage("§aChest sorted!");
+
+            ChestSorterPlugin plugin = JavaPlugin.getPlugin(ChestSorterPlugin.class);
+            String containerName = ChestSorterPlugin.toDisplayName(topInv.getType());
+            player.sendMessage(plugin.formatMessage("messages.sorted", containerName));
         }
 
         private void sortInventory(Inventory inv) {
@@ -145,15 +187,15 @@ public class ChestSorterPlugin extends JavaPlugin {
             if (item.hasItemMeta()) {
                 ItemMeta meta = item.getItemMeta();
 
-                //  custom display name
+                // custom display name
                 if (meta.hasDisplayName()) {
                     key.append("|name=").append(meta.getDisplayName());
                 }
 
-                // full meta (enchantments, lore, potion data, book data, etc.) serialized
+                // meta (enchants, lore, potion, book, etc.)
                 key.append("|meta=").append(meta.serialize().toString());
 
-                // loadstone compass
+                // lodestone compass
                 if (meta instanceof CompassMeta cm && cm.hasLodestone()) {
                     Location loc = cm.getLodestone();
                     key.append("|lodestone=")

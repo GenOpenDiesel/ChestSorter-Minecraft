@@ -3,6 +3,7 @@ package org.ch4rlesexe.chestSorterPlugin;
 
 import org.bukkit.Material;
 import org.bukkit.Location;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -20,25 +21,65 @@ import java.util.*;
 
 public class ChestSorterPlugin extends JavaPlugin {
 
+    private final FileConfiguration config = getConfig();
+
+    private static final List<ClickType> validClickTypes = new ArrayList<>();
+
+    private static final List<InventoryType> validInventoryTypes = new ArrayList<>();
+
     @Override
     public void onEnable() {
+        loadConfig();
         getServer().getPluginManager().registerEvents(new ChestSortListener(), this);
         getLogger().info("ChestSorter enabled!");
+
+    }
+
+    private void loadConfig() {
+        config.addDefault("enableClickTypeShiftRight", true);
+        config.addDefault("enableInventoryTypeChest", true);
+        config.addDefault("enableInventoryTypeEnderChest", true);
+        config.addDefault("enableInventoryTypeBarrel", true);
+        config.addDefault("enableInventoryTypeShulker", true);
+        config.addDefault("enableInventoryTypePlayer", false);
+        config.options().copyDefaults(true);
+        saveConfig();
+        this.saveDefaultConfig();
+
+        if (config.getBoolean("enableClickTypeShiftRight")) {
+            validClickTypes.add(ClickType.SHIFT_RIGHT);
+        }
+        if (config.getBoolean("enableInventoryTypeChest")) {
+            validInventoryTypes.add(InventoryType.CHEST);
+        }
+        if (config.getBoolean("enableInventoryTypeEnderChest")) {
+            validInventoryTypes.add(InventoryType.ENDER_CHEST);
+        }
+        if (config.getBoolean("enableInventoryTypeBarrel")) {
+            validInventoryTypes.add(InventoryType.BARREL);
+        }
+        if (config.getBoolean("enableInventoryTypeShulker")) {
+            validInventoryTypes.add(InventoryType.SHULKER_BOX);
+        }
+        if (config.getBoolean("enableInventoryTypePlayer")) {
+            validInventoryTypes.add(InventoryType.PLAYER);
+        }
     }
 
     static class ChestSortListener implements Listener {
 
         @EventHandler
         public void onInventoryClick(InventoryClickEvent event) {
-            // ONLY trigger on SHIFT + right‑click
-            if (event.getClick() != ClickType.SHIFT_RIGHT) return;
+            // ONLY trigger on configured click types
+            if(validClickTypes.stream().noneMatch(t -> t == event.getClick())) return;
 
             if (!(event.getWhoClicked() instanceof Player)) return;
             Player player = (Player) event.getWhoClicked();
 
             Inventory topInv = event.getView().getTopInventory();
             if (event.getRawSlot() >= topInv.getSize()) return;
-            if (topInv.getType() != InventoryType.CHEST) return;
+            // ONLY trigger on configured inventory types
+            if(validInventoryTypes.stream().noneMatch(t -> t == topInv.getType())) return;
 
             event.setCancelled(true);
             sortInventory(topInv);

@@ -13,7 +13,7 @@ commands:
 permissions:
   chestsort.sort:
     description: Pozwala uzywac sortowania skrzyn
-    default: false
+    default: op
   chestsort.admin:
     description: Pozwala przeladowywac konfiguracje
     default: op

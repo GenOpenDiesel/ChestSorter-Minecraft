@@ -26,14 +26,14 @@ public class SortCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        if (!player.hasPermission("chestsorter.use")) {
+        if (!player.hasPermission("chestsort.sort")) {
             player.sendMessage(plugin.formatMessage("messages.no-permission", ""));
             return true;
         }
 
-        // No arguments -> show status + help
+        // No arguments -> open GUI
         if (args.length == 0) {
-            showStatus(player);
+            plugin.getSortGUI().openGUI(player);
             return true;
         }
 
@@ -41,12 +41,18 @@ public class SortCommand implements CommandExecutor, TabCompleter {
 
         // Reload (admin only)
         if (arg.equals("reload")) {
-            if (!player.hasPermission("chestsorter.admin")) {
+            if (!player.hasPermission("chestsort.admin")) {
                 player.sendMessage(plugin.formatMessage("messages.no-permission", ""));
                 return true;
             }
             plugin.reloadPlugin();
             player.sendMessage(plugin.formatMessage("messages.reloaded", ""));
+            return true;
+        }
+
+        // Help
+        if (arg.equals("help") || arg.equals("pomoc")) {
+            showHelp(player);
             return true;
         }
 
@@ -81,11 +87,11 @@ public class SortCommand implements CommandExecutor, TabCompleter {
         }
 
         // Unknown argument -> show help
-        showStatus(player);
+        showHelp(player);
         return true;
     }
 
-    private void showStatus(Player player) {
+    private void showHelp(Player player) {
         ChestSorterPlugin.PlayerSortData data = plugin.getPlayerData(player.getUniqueId());
         if (data != null && data.enabled) {
             String method = ChestSorterPlugin.clickTypeDisplayName(data.clickType);
@@ -101,15 +107,17 @@ public class SortCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length != 1) return Collections.emptyList();
+        if (!sender.hasPermission("chestsort.sort")) return Collections.emptyList();
 
         String prefix = args[0].toLowerCase();
         List<String> completions = new ArrayList<>();
 
         completions.add("on");
         completions.add("off");
+        completions.add("help");
         completions.addAll(ChestSorterPlugin.TAB_METHODS);
 
-        if (sender.hasPermission("chestsorter.admin")) {
+        if (sender.hasPermission("chestsort.admin")) {
             completions.add("reload");
         }
 

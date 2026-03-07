@@ -29,7 +29,7 @@ public class SortListener implements Listener {
         if (!(event.getWhoClicked() instanceof Player player)) return;
 
         // Permission check
-        if (!player.hasPermission("chestsorter.use")) return;
+        if (!player.hasPermission("chestsort.sort")) return;
 
         // Player settings check
         ChestSorterPlugin.PlayerSortData data = plugin.getPlayerData(player.getUniqueId());
@@ -38,8 +38,13 @@ public class SortListener implements Listener {
         // Click type check (player's chosen method)
         if (event.getClick() != data.clickType) return;
 
-        // Inventory type check (server config)
+        // Inventory checks
         Inventory topInv = event.getView().getTopInventory();
+
+        // Skip our settings GUI
+        if (topInv.getHolder() instanceof SortGUI.GUIHolder) return;
+
+        // Inventory type check (server config)
         if (!plugin.isValidInventoryType(topInv.getType())) return;
 
         // Must be clicking in the top inventory

@@ -20,6 +20,7 @@ public class ChestSorterPlugin extends JavaPlugin {
     private final ConcurrentHashMap<UUID, PlayerSortData> playerData = new ConcurrentHashMap<>();
     private File playerDataFile;
     private ClickType defaultClickType = ClickType.SHIFT_RIGHT;
+    private SortGUI sortGUI;
 
     // User-friendly aliases -> ClickType
     static final LinkedHashMap<String, ClickType> CLICK_TYPE_ALIASES = new LinkedHashMap<>();
@@ -55,11 +56,19 @@ public class ChestSorterPlugin extends JavaPlugin {
         playerDataFile = new File(getDataFolder(), "playerdata.yml");
         loadPlayerDataAsync();
 
+        // Register listeners
         getServer().getPluginManager().registerEvents(new SortListener(this), this);
+        sortGUI = new SortGUI(this);
+        getServer().getPluginManager().registerEvents(sortGUI, this);
 
+        // Register command
         SortCommand cmd = new SortCommand(this);
-        getCommand("sortowanie").setExecutor(cmd);
-        getCommand("sortowanie").setTabCompleter(cmd);
+        if (getCommand("sortowanie") != null) {
+            getCommand("sortowanie").setExecutor(cmd);
+            getCommand("sortowanie").setTabCompleter(cmd);
+        } else {
+            getLogger().severe("Could not register /sortowanie command! Check plugin.yml");
+        }
 
         // Auto-save player data every 5 minutes (async)
         Bukkit.getScheduler().runTaskTimerAsynchronously(this, this::savePlayerDataToDisk, 6000L, 6000L);
@@ -96,9 +105,15 @@ public class ChestSorterPlugin extends JavaPlugin {
         if (getConfig().getBoolean("enableInventoryTypePlayer", false))
             validInventoryTypes.add(InventoryType.PLAYER);
 
-        String clickStr = getConfig().getString("defaultClickType", "shift_right").toLowerCase();
+        String clickStr = getConfig().getString("defaultClickType", "shift").toLowerCase();
         ClickType parsed = CLICK_TYPE_ALIASES.get(clickStr);
         defaultClickType = (parsed != null) ? parsed : ClickType.SHIFT_RIGHT;
+    }
+
+    // --- GUI access ---
+
+    SortGUI getSortGUI() {
+        return sortGUI;
     }
 
     // --- Player data access ---

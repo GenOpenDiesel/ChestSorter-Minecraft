@@ -1,0 +1,124 @@
+package org.ch4rlesexe.chestSorterPlugin;
+
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandExecutor;
+import org.bukkit.command.CommandSender;
+import org.bukkit.command.TabCompleter;
+import org.bukkit.entity.Player;
+import org.bukkit.event.inventory.ClickType;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+public class SortCommand implements CommandExecutor, TabCompleter {
+
+    private final ChestSorterPlugin plugin;
+
+    public SortCommand(ChestSorterPlugin plugin) {
+        this.plugin = plugin;
+    }
+
+    @Override
+    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("Ta komenda jest tylko dla graczy!");
+            return true;
+        }
+
+        if (!player.hasPermission("chestsorter.use")) {
+            player.sendMessage(plugin.formatMessage("messages.no-permission", ""));
+            return true;
+        }
+
+        // No arguments -> show status + help
+        if (args.length == 0) {
+            showStatus(player);
+            return true;
+        }
+
+        String arg = args[0].toLowerCase();
+
+        // Reload (admin only)
+        if (arg.equals("reload")) {
+            if (!player.hasPermission("chestsorter.admin")) {
+                player.sendMessage(plugin.formatMessage("messages.no-permission", ""));
+                return true;
+            }
+            plugin.reloadPlugin();
+            player.sendMessage(plugin.formatMessage("messages.reloaded", ""));
+            return true;
+        }
+
+        // Enable
+        if (arg.equals("on")) {
+            ChestSorterPlugin.PlayerSortData data = plugin.getOrCreatePlayerData(player.getUniqueId());
+            data.enabled = true;
+            plugin.savePlayerDataAsync();
+            String method = ChestSorterPlugin.clickTypeDisplayName(data.clickType);
+            player.sendMessage(plugin.formatMessage("messages.enabled", "").replace("%method%", method));
+            return true;
+        }
+
+        // Disable
+        if (arg.equals("off")) {
+            ChestSorterPlugin.PlayerSortData data = plugin.getOrCreatePlayerData(player.getUniqueId());
+            data.enabled = false;
+            plugin.savePlayerDataAsync();
+            player.sendMessage(plugin.formatMessage("messages.disabled", ""));
+            return true;
+        }
+
+        // Try to parse as click type method
+        ClickType clickType = ChestSorterPlugin.CLICK_TYPE_ALIASES.get(arg);
+        if (clickType != null) {
+            ChestSorterPlugin.PlayerSortData data = plugin.getOrCreatePlayerData(player.getUniqueId());
+            data.clickType = clickType;
+            plugin.savePlayerDataAsync();
+            String method = ChestSorterPlugin.clickTypeDisplayName(clickType);
+            player.sendMessage(plugin.formatMessage("messages.method-set", "").replace("%method%", method));
+            return true;
+        }
+
+        // Unknown argument -> show help
+        showStatus(player);
+        return true;
+    }
+
+    private void showStatus(Player player) {
+        ChestSorterPlugin.PlayerSortData data = plugin.getPlayerData(player.getUniqueId());
+        if (data != null && data.enabled) {
+            String method = ChestSorterPlugin.clickTypeDisplayName(data.clickType);
+            player.sendMessage(plugin.formatMessage("messages.status-on", "").replace("%method%", method));
+        } else {
+            player.sendMessage(plugin.formatMessage("messages.status-off", ""));
+        }
+        for (String line : plugin.getHelpMessages()) {
+            player.sendMessage(line);
+        }
+    }
+
+    @Override
+    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (args.length != 1) return Collections.emptyList();
+
+        String prefix = args[0].toLowerCase();
+        List<String> completions = new ArrayList<>();
+
+        completions.add("on");
+        completions.add("off");
+        completions.addAll(ChestSorterPlugin.TAB_METHODS);
+
+        if (sender.hasPermission("chestsorter.admin")) {
+            completions.add("reload");
+        }
+
+        List<String> filtered = new ArrayList<>();
+        for (String c : completions) {
+            if (c.startsWith(prefix)) {
+                filtered.add(c);
+            }
+        }
+        return filtered;
+    }
+}

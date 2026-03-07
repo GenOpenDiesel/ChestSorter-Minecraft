@@ -1,4 +1,17 @@
 name: ChestSorter
-version: '1.0'
+version: '1.1'
 main: org.ch4rlesexe.chestSorterPlugin.ChestSorterPlugin
 api-version: '1.20.1'
+
+commands:
+  sortowanie:
+    description: Wlacz/wylacz sortowanie skrzyn
+    usage: /sortowanie <on|off|metoda>
+
+permissions:
+  chestsorter.use:
+    description: Pozwala uzywac sortowania skrzyn
+    default: op
+  chestsorter.admin:
+    description: Pozwala przeladowywac konfiguracje
+    default: op

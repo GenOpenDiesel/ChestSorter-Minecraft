@@ -6,6 +6,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
+import org.bukkit.util.StringUtil;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -106,27 +107,34 @@ public class SortCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (args.length != 1) return Collections.emptyList();
-        if (!sender.hasPermission("chestsort.sort")) return Collections.emptyList();
-
-        String prefix = args[0].toLowerCase();
         List<String> completions = new ArrayList<>();
+        List<String> finalCompletions = new ArrayList<>();
 
-        completions.add("on");
-        completions.add("off");
-        completions.add("help");
-        completions.addAll(ChestSorterPlugin.TAB_METHODS);
-
-        if (sender.hasPermission("chestsort.admin")) {
-            completions.add("reload");
+        // Zwracanie standardowej, mutowalnej pustej listy dla graczy bez permisji blokuje
+        // wyświetlanie domyślnych nicków graczy na serwerze.
+        if (!sender.hasPermission("chestsort.sort")) {
+            return finalCompletions; 
         }
 
-        List<String> filtered = new ArrayList<>();
-        for (String c : completions) {
-            if (c.startsWith(prefix)) {
-                filtered.add(c);
+        if (args.length == 1) {
+            completions.add("on");
+            completions.add("off");
+            completions.add("help");
+            completions.addAll(ChestSorterPlugin.TAB_METHODS);
+
+            if (sender.hasPermission("chestsort.admin")) {
+                completions.add("reload");
             }
+
+            // StringUtil od Bukkita automatycznie i bezpiecznie filtruje podane argumenty,
+            // ignorując wielkość liter gracza podczas wpisywania.
+            StringUtil.copyPartialMatches(args[0], completions, finalCompletions);
+            
+            // Ładne alfabetyczne sortowanie
+            Collections.sort(finalCompletions);
         }
-        return filtered;
+
+        // Jeśli args.length > 1, zwrócona zostanie finalCompletions, która jest pusta (zamiast pokazywać nicki)
+        return finalCompletions;
     }
 }

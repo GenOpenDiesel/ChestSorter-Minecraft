@@ -25,14 +25,11 @@ public class SortGUI implements Listener {
 
     // Layout: 27-slot chest
     // Row 0: filler
-    // Row 1: [G] [TOGGLE] [G] [SR] [SL] [R] [L] [M] [D]
+    // Row 1: [G] [G] [G] [Brak] [Shift+R] [Shift+L] [G] [G] [G]
     // Row 2: filler
-    private static final int TOGGLE_SLOT = 10;
-    private static final int[] METHOD_SLOTS = {12, 13, 14, 15, 16, 17};
-    private static final ClickType[] METHODS = {
-            ClickType.SHIFT_RIGHT, ClickType.SHIFT_LEFT, ClickType.RIGHT,
-            ClickType.LEFT, ClickType.MIDDLE, ClickType.DOUBLE_CLICK
-    };
+    private static final int[] OPTION_SLOTS = {12, 13, 14};
+    private static final ClickType[] OPTION_TYPES = {null, ClickType.SHIFT_RIGHT, ClickType.SHIFT_LEFT};
+    private static final String[] OPTION_NAMES = {"Brak", "Shift+Prawy", "Shift+Lewy"};
 
     public SortGUI(ChestSorterPlugin plugin) {
         this.plugin = plugin;
@@ -54,16 +51,21 @@ public class SortGUI implements Listener {
             inv.setItem(i, filler);
         }
 
-        // Toggle button
-        inv.setItem(TOGGLE_SLOT, createToggleItem(data.enabled));
-
-        // Method buttons
-        for (int i = 0; i < METHODS.length; i++) {
-            boolean selected = data.clickType == METHODS[i];
-            inv.setItem(METHOD_SLOTS[i], createMethodItem(METHODS[i], selected));
+        // Option buttons
+        for (int i = 0; i < OPTION_SLOTS.length; i++) {
+            boolean selected = isOptionSelected(data, i);
+            inv.setItem(OPTION_SLOTS[i], createOptionItem(i, selected));
         }
 
         player.openInventory(inv);
+    }
+
+    private boolean isOptionSelected(ChestSorterPlugin.PlayerSortData data, int index) {
+        if (OPTION_TYPES[index] == null) {
+            // "Brak" is selected when sorting is disabled
+            return !data.enabled;
+        }
+        return data.enabled && data.clickType == OPTION_TYPES[index];
     }
 
     @EventHandler
@@ -79,27 +81,23 @@ public class SortGUI implements Listener {
         ChestSorterPlugin.PlayerSortData data = plugin.getOrCreatePlayerData(player.getUniqueId());
         Inventory inv = event.getInventory();
 
-        // Toggle ON/OFF
-        if (slot == TOGGLE_SLOT) {
-            data.enabled = !data.enabled;
-            inv.setItem(TOGGLE_SLOT, createToggleItem(data.enabled));
-            plugin.savePlayerDataAsync();
-            player.playSound(player.getLocation(),
-                    data.enabled ? Sound.BLOCK_NOTE_BLOCK_PLING : Sound.UI_BUTTON_CLICK,
-                    1.0f, data.enabled ? 2.0f : 0.5f);
-            return;
-        }
+        // Option selection
+        for (int i = 0; i < OPTION_SLOTS.length; i++) {
+            if (slot == OPTION_SLOTS[i]) {
+                if (isOptionSelected(data, i)) return; // Already selected
 
-        // Method selection
-        for (int i = 0; i < METHOD_SLOTS.length; i++) {
-            if (slot == METHOD_SLOTS[i]) {
-                if (data.clickType == METHODS[i]) return; // Already selected
+                if (OPTION_TYPES[i] == null) {
+                    // "Brak" -> disable sorting
+                    data.enabled = false;
+                } else {
+                    // Method selected -> enable with that method
+                    data.enabled = true;
+                    data.clickType = OPTION_TYPES[i];
+                }
 
-                data.clickType = METHODS[i];
-
-                // Update all method items visually
-                for (int j = 0; j < METHODS.length; j++) {
-                    inv.setItem(METHOD_SLOTS[j], createMethodItem(METHODS[j], METHODS[j] == data.clickType));
+                // Update all option items visually
+                for (int j = 0; j < OPTION_SLOTS.length; j++) {
+                    inv.setItem(OPTION_SLOTS[j], createOptionItem(j, isOptionSelected(data, j)));
                 }
 
                 plugin.savePlayerDataAsync();
@@ -118,31 +116,29 @@ public class SortGUI implements Listener {
 
     // --- Item builders ---
 
-    private ItemStack createToggleItem(boolean enabled) {
-        Material mat = enabled ? Material.LIME_DYE : Material.GRAY_DYE;
-        String name = enabled ? "&a&lSortowanie: WLACZONE" : "&c&lSortowanie: WYLACZONE";
-        String lore = enabled ? "&7Kliknij aby wylaczyc" : "&7Kliknij aby wlaczyc";
+    private ItemStack createOptionItem(int index, boolean selected) {
+        boolean isBrak = OPTION_TYPES[index] == null;
+        Material mat;
+        if (selected) {
+            mat = isBrak ? Material.RED_STAINED_GLASS_PANE : Material.LIME_STAINED_GLASS_PANE;
+        } else {
+            mat = Material.WHITE_STAINED_GLASS_PANE;
+        }
 
-        ItemStack item = createItem(mat, name);
-        ItemMeta meta = item.getItemMeta();
-        meta.setLore(Collections.singletonList(ChatColor.translateAlternateColorCodes('&', lore)));
-        item.setItemMeta(meta);
-        return item;
-    }
-
-    private ItemStack createMethodItem(ClickType method, boolean selected) {
-        Material mat = selected ? Material.LIME_STAINED_GLASS_PANE : Material.WHITE_STAINED_GLASS_PANE;
-        String color = selected ? "&a" : "&7";
-        String displayName = ChestSorterPlugin.clickTypeDisplayName(method);
-
-        ItemStack item = createItem(mat, color + displayName);
+        String color = selected ? (isBrak ? "&c" : "&a") : "&7";
+        ItemStack item = createItem(mat, color + OPTION_NAMES[index]);
         ItemMeta meta = item.getItemMeta();
 
         if (selected) {
             meta.addEnchant(Enchantment.DURABILITY, 1, true);
             meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
-            meta.setLore(Collections.singletonList(
-                    ChatColor.translateAlternateColorCodes('&', "&a► Wybrane")));
+            if (isBrak) {
+                meta.setLore(Collections.singletonList(
+                        ChatColor.translateAlternateColorCodes('&', "&c► Wylaczone")));
+            } else {
+                meta.setLore(Collections.singletonList(
+                        ChatColor.translateAlternateColorCodes('&', "&a► Wybrane")));
+            }
         } else {
             meta.setLore(Collections.singletonList(
                     ChatColor.translateAlternateColorCodes('&', "&7Kliknij aby wybrac")));

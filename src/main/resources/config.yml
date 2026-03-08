@@ -30,4 +30,4 @@ messages:
     - "&e/sortowanie off &7- wylacz sortowanie"
     - "&e/sortowanie <metoda> &7- ustaw metode sortowania"
     - "&e/sortowanie help &7- pokaz pomoc"
-    - "&7Dostepne metody: &eshift&7, &eshift_left&7, &eright&7, &eleft&7, &emiddle&7, &edouble"
+    - "&7Dostepne metody: &eshift_right&7, &eshift_left&7, &ebrak"

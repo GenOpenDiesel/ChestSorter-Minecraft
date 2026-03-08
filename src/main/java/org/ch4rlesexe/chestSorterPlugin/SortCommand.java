@@ -6,7 +6,6 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
-import org.bukkit.util.StringUtil;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -61,6 +60,10 @@ public class SortCommand implements CommandExecutor, TabCompleter {
         if (arg.equals("on")) {
             ChestSorterPlugin.PlayerSortData data = plugin.getOrCreatePlayerData(player.getUniqueId());
             data.enabled = true;
+            // Migrate old single-click methods
+            if (!ChestSorterPlugin.VALID_CLICK_TYPES.contains(data.clickType)) {
+                data.clickType = plugin.getDefaultClickType();
+            }
             plugin.savePlayerDataAsync();
             String method = ChestSorterPlugin.clickTypeDisplayName(data.clickType);
             player.sendMessage(plugin.formatMessage("messages.enabled", "").replace("%method%", method));
@@ -68,7 +71,7 @@ public class SortCommand implements CommandExecutor, TabCompleter {
         }
 
         // Disable
-        if (arg.equals("off")) {
+        if (arg.equals("off") || arg.equals("brak")) {
             ChestSorterPlugin.PlayerSortData data = plugin.getOrCreatePlayerData(player.getUniqueId());
             data.enabled = false;
             plugin.savePlayerDataAsync();
@@ -81,6 +84,7 @@ public class SortCommand implements CommandExecutor, TabCompleter {
         if (clickType != null) {
             ChestSorterPlugin.PlayerSortData data = plugin.getOrCreatePlayerData(player.getUniqueId());
             data.clickType = clickType;
+            data.enabled = true;
             plugin.savePlayerDataAsync();
             String method = ChestSorterPlugin.clickTypeDisplayName(clickType);
             player.sendMessage(plugin.formatMessage("messages.method-set", "").replace("%method%", method));
@@ -107,34 +111,27 @@ public class SortCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (args.length != 1) return Collections.emptyList();
+        if (!sender.hasPermission("chestsort.sort")) return Collections.emptyList();
+
+        String prefix = args[0].toLowerCase();
         List<String> completions = new ArrayList<>();
-        List<String> finalCompletions = new ArrayList<>();
 
-        // Zwracanie standardowej, mutowalnej pustej listy dla graczy bez permisji blokuje
-        // wyświetlanie domyślnych nicków graczy na serwerze.
-        if (!sender.hasPermission("chestsort.sort")) {
-            return finalCompletions; 
+        completions.add("on");
+        completions.add("off");
+        completions.add("help");
+        completions.addAll(ChestSorterPlugin.TAB_METHODS);
+
+        if (sender.hasPermission("chestsort.admin")) {
+            completions.add("reload");
         }
 
-        if (args.length == 1) {
-            completions.add("on");
-            completions.add("off");
-            completions.add("help");
-            completions.addAll(ChestSorterPlugin.TAB_METHODS);
-
-            if (sender.hasPermission("chestsort.admin")) {
-                completions.add("reload");
+        List<String> filtered = new ArrayList<>();
+        for (String c : completions) {
+            if (c.startsWith(prefix)) {
+                filtered.add(c);
             }
-
-            // StringUtil od Bukkita automatycznie i bezpiecznie filtruje podane argumenty,
-            // ignorując wielkość liter gracza podczas wpisywania.
-            StringUtil.copyPartialMatches(args[0], completions, finalCompletions);
-            
-            // Ładne alfabetyczne sortowanie
-            Collections.sort(finalCompletions);
         }
-
-        // Jeśli args.length > 1, zwrócona zostanie finalCompletions, która jest pusta (zamiast pokazywać nicki)
-        return finalCompletions;
+        return filtered;
     }
 }

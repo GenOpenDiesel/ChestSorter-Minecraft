@@ -30,19 +30,14 @@ public class ChestSorterPlugin extends JavaPlugin {
         CLICK_TYPE_ALIASES.put("shiftrightclick", ClickType.SHIFT_RIGHT);
         CLICK_TYPE_ALIASES.put("shift_left", ClickType.SHIFT_LEFT);
         CLICK_TYPE_ALIASES.put("shiftleftclick", ClickType.SHIFT_LEFT);
-        CLICK_TYPE_ALIASES.put("right", ClickType.RIGHT);
-        CLICK_TYPE_ALIASES.put("rightclick", ClickType.RIGHT);
-        CLICK_TYPE_ALIASES.put("left", ClickType.LEFT);
-        CLICK_TYPE_ALIASES.put("leftclick", ClickType.LEFT);
-        CLICK_TYPE_ALIASES.put("middle", ClickType.MIDDLE);
-        CLICK_TYPE_ALIASES.put("middleclick", ClickType.MIDDLE);
-        CLICK_TYPE_ALIASES.put("double", ClickType.DOUBLE_CLICK);
-        CLICK_TYPE_ALIASES.put("doubleclick", ClickType.DOUBLE_CLICK);
     }
+
+    // Valid click types (used for migration)
+    static final EnumSet<ClickType> VALID_CLICK_TYPES = EnumSet.of(ClickType.SHIFT_RIGHT, ClickType.SHIFT_LEFT);
 
     // Primary aliases shown in tab-complete
     static final List<String> TAB_METHODS = Arrays.asList(
-            "shift", "shift_left", "right", "left", "middle", "double"
+            "brak", "shift_right", "shift_left"
     );
 
     @Override
@@ -178,10 +173,6 @@ public class ChestSorterPlugin extends JavaPlugin {
         switch (type) {
             case SHIFT_RIGHT: return "Shift+Prawy";
             case SHIFT_LEFT: return "Shift+Lewy";
-            case RIGHT: return "Prawy klik";
-            case LEFT: return "Lewy klik";
-            case MIDDLE: return "Srodkowy klik";
-            case DOUBLE_CLICK: return "Podwojny klik";
             default: return type.name();
         }
     }
@@ -222,6 +213,10 @@ public class ChestSorterPlugin extends JavaPlugin {
                     try {
                         click = ClickType.valueOf(clickStr);
                     } catch (IllegalArgumentException e) {
+                        click = defaultClickType;
+                    }
+                    // Migrate old single-click methods to default
+                    if (!VALID_CLICK_TYPES.contains(click)) {
                         click = defaultClickType;
                     }
                     playerData.put(uuid, new PlayerSortData(enabled, click));

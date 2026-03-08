@@ -7,13 +7,11 @@ commands:
   sortowanie:
     description: Wlacz/wylacz sortowanie skrzyn
     usage: /sortowanie <on|off|metoda>
-    permission: chestsort.sort
-    permission-message: "&cKup range &eElite &caby uzywac sortowania!"
 
 permissions:
   chestsort.sort:
     description: Pozwala uzywac sortowania skrzyn
-    default: op
+    default: false
   chestsort.admin:
     description: Pozwala przeladowywac konfiguracje
     default: op

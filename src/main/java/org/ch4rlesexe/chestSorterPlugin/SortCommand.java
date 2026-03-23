@@ -21,10 +21,11 @@ public class SortCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!(sender instanceof Player player)) {
+        if (!(sender instanceof Player)) {
             sender.sendMessage("Ta komenda jest tylko dla graczy!");
             return true;
         }
+        Player player = (Player) sender;
 
         if (!player.hasPermission("chestsort.sort")) {
             player.sendMessage(plugin.formatMessage("messages.no-permission", ""));

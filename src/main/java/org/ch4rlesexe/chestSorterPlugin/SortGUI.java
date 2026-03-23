@@ -101,7 +101,8 @@ public class SortGUI implements Listener {
         if (!(event.getInventory().getHolder() instanceof GUIHolder)) return;
         event.setCancelled(true);
 
-        if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (!(event.getWhoClicked() instanceof Player)) return;
+        Player player = (Player) event.getWhoClicked();
 
         int slot = event.getRawSlot();
         if (slot < 0 || slot >= 45) return;

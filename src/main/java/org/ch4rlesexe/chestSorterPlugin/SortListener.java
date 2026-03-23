@@ -31,7 +31,8 @@ public class SortListener implements Listener {
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (!(event.getWhoClicked() instanceof Player)) return;
+        Player player = (Player) event.getWhoClicked();
 
         if (!player.hasPermission("chestsort.sort")) return;
 
@@ -190,7 +191,8 @@ public class SortListener implements Listener {
             key.append("|meta=").append(meta.serialize().toString());
 
             try {
-                if (meta instanceof CompassMeta cm && cm.hasLodestone()) {
+                if (meta instanceof CompassMeta && ((CompassMeta) meta).hasLodestone()) {
+                    CompassMeta cm = (CompassMeta) meta;
                     Location loc = cm.getLodestone();
                     if (loc != null && loc.getWorld() != null) {
                         key.append("|lodestone=")
@@ -204,7 +206,8 @@ public class SortListener implements Listener {
             } catch (Exception ignored) {
             }
 
-            if (meta instanceof MapMeta mm) {
+            if (meta instanceof MapMeta) {
+                MapMeta mm = (MapMeta) meta;
                 key.append("|mapId=").append(mm.getMapId());
             }
         }

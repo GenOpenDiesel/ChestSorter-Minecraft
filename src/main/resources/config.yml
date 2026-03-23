@@ -1,7 +1,8 @@
-# Click behavior
-enableClickTypeShiftRight: true
+# Domyslna metoda sortowania dla nowych graczy
+# Dostepne: shift, shift_left, right, left, middle, double
+defaultClickType: shift
 
-# Which containers or inventories are sortable
+# Ktore kontenery mozna sortowac
 enableInventoryTypeChest: true
 enableInventoryTypeEnderChest: true
 enableInventoryTypeBarrel: true
@@ -10,7 +11,24 @@ enableInventoryTypeDropper: true
 enableInventoryTypeDispenser: true
 enableInventoryTypePlayer: false
 
-# Messages
-# Use & color codes and the %container% placeholder.
+# Wiadomosci
+# Uzyj & do kolorow, %container% i %method% jako zmienne.
 messages:
-  sorted: "&a%container% sorted!"
+  sorted: "&a%container% posortowany!"
+  eq-sorted: "&a%container% posortowany!"
+  enabled: "&aSortowanie wlaczone! &7Metoda: &e%method%"
+  disabled: "&cSortowanie wylaczone!"
+  no-permission: "&cKup range &eElite &caby uzywac sortowania!"
+  method-set: "&aUstawiono metode sortowania na: &e%method%"
+  reloaded: "&aKonfiguracja przeladowana!"
+  status-detailed: "&7Skrzynki: %chest% &7| EQ: %eq%"
+  status-off: "&7Sortowanie: &cwylaczone"
+  gui-title: "&8Sortowanie"
+  help:
+    - "&6=== ChestSorter Pomoc ==="
+    - "&e/sortowanie &7- otworz GUI ustawien"
+    - "&e/sortowanie on &7- wlacz sortowanie"
+    - "&e/sortowanie off &7- wylacz sortowanie"
+    - "&e/sortowanie <metoda> &7- ustaw metode sortowania"
+    - "&e/sortowanie help &7- pokaz pomoc"
+    - "&7Dostepne metody: &eshift_right&7, &eshift_left&7, &ebrak"

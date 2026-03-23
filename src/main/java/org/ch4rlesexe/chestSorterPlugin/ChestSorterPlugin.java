@@ -1,87 +1,152 @@
 package org.ch4rlesexe.chestSorterPlugin;
 
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.Material;
-import org.bukkit.Location;
-import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.event.inventory.ClickType;
-import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryType;
-import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.CompassMeta;
-import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.inventory.meta.MapMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
 
 public class ChestSorterPlugin extends JavaPlugin {
 
-    private FileConfiguration config;
+    private final EnumSet<InventoryType> validInventoryTypes = EnumSet.noneOf(InventoryType.class);
+    private final ConcurrentHashMap<UUID, PlayerSortData> playerData = new ConcurrentHashMap<>();
+    private File playerDataFile;
+    private ClickType defaultClickType = ClickType.SHIFT_RIGHT;
+    private SortGUI sortGUI;
 
-    private static final List<ClickType> validClickTypes = new ArrayList<>();
-    private static final List<InventoryType> validInventoryTypes = new ArrayList<>();
+    // User-friendly aliases -> ClickType
+    static final LinkedHashMap<String, ClickType> CLICK_TYPE_ALIASES = new LinkedHashMap<>();
+    static {
+        CLICK_TYPE_ALIASES.put("shift", ClickType.SHIFT_RIGHT);
+        CLICK_TYPE_ALIASES.put("shift_right", ClickType.SHIFT_RIGHT);
+        CLICK_TYPE_ALIASES.put("shiftrightclick", ClickType.SHIFT_RIGHT);
+        CLICK_TYPE_ALIASES.put("shift_left", ClickType.SHIFT_LEFT);
+        CLICK_TYPE_ALIASES.put("shiftleftclick", ClickType.SHIFT_LEFT);
+    }
+
+    // Valid click types (used for migration)
+    static final EnumSet<ClickType> VALID_CLICK_TYPES = EnumSet.of(ClickType.SHIFT_RIGHT, ClickType.SHIFT_LEFT);
+
+    // Primary aliases shown in tab-complete
+    static final List<String> TAB_METHODS = Arrays.asList(
+            "brak", "shift_right", "shift_left"
+    );
 
     @Override
     public void onEnable() {
         if (!new File(getDataFolder(), "config.yml").exists()) {
             saveDefaultConfig();
         }
-
         reloadConfig();
-        this.config = getConfig();
-
         loadTogglesFromConfig();
 
-        getServer().getPluginManager().registerEvents(new ChestSortListener(), this);
+        playerDataFile = new File(getDataFolder(), "playerdata.yml");
+        loadPlayerDataAsync();
+
+        // Register listeners
+        getServer().getPluginManager().registerEvents(new SortListener(this), this);
+        sortGUI = new SortGUI(this);
+        getServer().getPluginManager().registerEvents(sortGUI, this);
+
+        // Register command
+        SortCommand cmd = new SortCommand(this);
+        if (getCommand("sortowanie") != null) {
+            getCommand("sortowanie").setExecutor(cmd);
+            getCommand("sortowanie").setTabCompleter(cmd);
+        } else {
+            getLogger().severe("Could not register /sortowanie command! Check plugin.yml");
+        }
+
+        // Auto-save player data every 5 minutes (async)
+        Bukkit.getScheduler().runTaskTimerAsynchronously(this, this::savePlayerDataToDisk, 6000L, 6000L);
+
         getLogger().info("ChestSorter enabled!");
     }
 
-    private void loadTogglesFromConfig() {
-        validClickTypes.clear();
-        validInventoryTypes.clear();
-
-        // Click toggles
-        if (config.getBoolean("enableClickTypeShiftRight", true)) {
-            validClickTypes.add(ClickType.SHIFT_RIGHT);
-        }
-
-        // Container toggles
-        if (config.getBoolean("enableInventoryTypeChest", true)) {
-            validInventoryTypes.add(InventoryType.CHEST);
-        }
-        if (config.getBoolean("enableInventoryTypeEnderChest", true)) {
-            validInventoryTypes.add(InventoryType.ENDER_CHEST);
-        }
-        if (config.getBoolean("enableInventoryTypeBarrel", true)) {
-            validInventoryTypes.add(InventoryType.BARREL);
-        }
-        if (config.getBoolean("enableInventoryTypeShulker", true)) {
-            validInventoryTypes.add(InventoryType.SHULKER_BOX);
-        }
-        if (config.getBoolean("enableInventoryTypeDropper", true)) {
-            validInventoryTypes.add(InventoryType.DROPPER);
-        }
-        if (config.getBoolean("enableInventoryTypeDispenser", true)) {
-            validInventoryTypes.add(InventoryType.DISPENSER);
-        }
-        if (config.getBoolean("enableInventoryTypePlayer", false)) {
-            validInventoryTypes.add(InventoryType.PLAYER);
-        }
+    @Override
+    public void onDisable() {
+        savePlayerDataToDisk();
+        getLogger().info("ChestSorter disabled!");
     }
 
-    private String formatMessage(String path, String containerName) {
-        String raw = config.getString(path, "&a%container% sorted!");
+    void reloadPlugin() {
+        reloadConfig();
+        loadTogglesFromConfig();
+    }
+
+    private void loadTogglesFromConfig() {
+        validInventoryTypes.clear();
+
+        if (getConfig().getBoolean("enableInventoryTypeChest", true))
+            validInventoryTypes.add(InventoryType.CHEST);
+        if (getConfig().getBoolean("enableInventoryTypeEnderChest", true))
+            validInventoryTypes.add(InventoryType.ENDER_CHEST);
+        if (getConfig().getBoolean("enableInventoryTypeBarrel", true))
+            validInventoryTypes.add(InventoryType.BARREL);
+        if (getConfig().getBoolean("enableInventoryTypeShulker", true))
+            validInventoryTypes.add(InventoryType.SHULKER_BOX);
+        if (getConfig().getBoolean("enableInventoryTypeDropper", true))
+            validInventoryTypes.add(InventoryType.DROPPER);
+        if (getConfig().getBoolean("enableInventoryTypeDispenser", true))
+            validInventoryTypes.add(InventoryType.DISPENSER);
+        if (getConfig().getBoolean("enableInventoryTypePlayer", false))
+            validInventoryTypes.add(InventoryType.PLAYER);
+
+        String clickStr = getConfig().getString("defaultClickType", "shift").toLowerCase();
+        ClickType parsed = CLICK_TYPE_ALIASES.get(clickStr);
+        defaultClickType = (parsed != null) ? parsed : ClickType.SHIFT_RIGHT;
+    }
+
+    // --- GUI access ---
+
+    SortGUI getSortGUI() {
+        return sortGUI;
+    }
+
+    // --- Player data access ---
+
+    PlayerSortData getPlayerData(UUID uuid) {
+        return playerData.get(uuid);
+    }
+
+    PlayerSortData getOrCreatePlayerData(UUID uuid) {
+        return playerData.computeIfAbsent(uuid, k -> new PlayerSortData(false, defaultClickType, false, defaultClickType));
+    }
+
+    boolean isValidInventoryType(InventoryType type) {
+        return validInventoryTypes.contains(type);
+    }
+
+    ClickType getDefaultClickType() {
+        return defaultClickType;
+    }
+
+    // --- Messages ---
+
+    String formatMessage(String path, String containerName) {
+        String raw = getConfig().getString(path, "");
         raw = raw.replace("%container%", containerName);
         return ChatColor.translateAlternateColorCodes('&', raw);
     }
 
-    private static String toDisplayName(InventoryType type) {
+    List<String> getHelpMessages() {
+        List<String> raw = getConfig().getStringList("messages.help");
+        List<String> result = new ArrayList<>(raw.size());
+        for (String line : raw) {
+            result.add(ChatColor.translateAlternateColorCodes('&', line));
+        }
+        return result;
+    }
+
+    static String toDisplayName(InventoryType type) {
         switch (type) {
             case CHEST: return "Chest";
             case ENDER_CHEST: return "Ender Chest";
@@ -104,123 +169,99 @@ public class ChestSorterPlugin extends JavaPlugin {
         }
     }
 
-    static class ChestSortListener implements Listener {
-
-        @EventHandler
-        public void onInventoryClick(InventoryClickEvent event) {
-            // ONLY trigger on configured click types
-            if (validClickTypes.stream().noneMatch(t -> t == event.getClick())) return;
-
-            if (!(event.getWhoClicked() instanceof Player)) return;
-            Player player = (Player) event.getWhoClicked();
-
-            Inventory topInv = event.getView().getTopInventory();
-            if (event.getRawSlot() >= topInv.getSize()) return;
-
-            // ONLY trigger on configured inventory types
-            if (validInventoryTypes.stream().noneMatch(t -> t == topInv.getType())) return;
-
-            event.setCancelled(true);
-            sortInventory(topInv);
-
-            ChestSorterPlugin plugin = JavaPlugin.getPlugin(ChestSorterPlugin.class);
-            String containerName = ChestSorterPlugin.toDisplayName(topInv.getType());
-            player.sendMessage(plugin.formatMessage("messages.sorted", containerName));
+    static String clickTypeDisplayName(ClickType type) {
+        switch (type) {
+            case SHIFT_RIGHT: return "Shift+Prawy";
+            case SHIFT_LEFT: return "Shift+Lewy";
+            default: return type.name();
         }
+    }
 
-        private void sortInventory(Inventory inv) {
-            List<ItemStack> items = new ArrayList<>();
-            for (int i = 0; i < inv.getSize(); i++) {
-                ItemStack it = inv.getItem(i);
-                if (it != null && it.getType() != Material.AIR) {
-                    items.add(it);
-                    inv.setItem(i, null);
-                }
-            }
+    // --- Persistence (async) ---
 
-            Map<String, Integer> countMap = new HashMap<>();
-            Map<String, ItemStack> protoMap = new HashMap<>();
-            List<ItemStack> nonStackable = new ArrayList<>();
+    void savePlayerDataAsync() {
+        Bukkit.getScheduler().runTaskAsynchronously(this, this::savePlayerDataToDisk);
+    }
 
-            for (ItemStack it : items) {
-                if (it.getMaxStackSize() > 1) {
-                    String key = getItemKey(it);
-                    countMap.put(key, countMap.getOrDefault(key, 0) + it.getAmount());
-                    protoMap.computeIfAbsent(key, k -> {
-                        ItemStack proto = it.clone();
-                        proto.setAmount(1);
-                        return proto;
-                    });
-                } else {
-                    nonStackable.add(it);
-                }
-            }
-
-            List<ItemStack> combined = new ArrayList<>();
-            for (Map.Entry<String, Integer> e : countMap.entrySet()) {
-                ItemStack proto = protoMap.get(e.getKey());
-                int total = e.getValue();
-                int max = proto.getMaxStackSize();
-                while (total > 0) {
-                    int take = Math.min(total, max);
-                    total -= take;
-                    ItemStack batch = proto.clone();
-                    batch.setAmount(take);
-                    combined.add(batch);
-                }
-            }
-            combined.addAll(nonStackable);
-
-            // alphabetical sorting
-            combined.sort(Comparator.comparing(this::getItemSortName, String.CASE_INSENSITIVE_ORDER));
-
-            int idx = 0;
-            for (ItemStack it : combined) {
-                if (idx >= inv.getSize()) break;
-                inv.setItem(idx++, it);
-            }
+    private void savePlayerDataToDisk() {
+        YamlConfiguration yaml = new YamlConfiguration();
+        for (Map.Entry<UUID, PlayerSortData> entry : playerData.entrySet()) {
+            String path = "players." + entry.getKey().toString();
+            PlayerSortData d = entry.getValue();
+            yaml.set(path + ".chestEnabled", d.chestEnabled);
+            yaml.set(path + ".chestClickType", d.chestClickType.name());
+            yaml.set(path + ".eqEnabled", d.eqEnabled);
+            yaml.set(path + ".eqClickType", d.eqClickType.name());
         }
-
-        private String getItemKey(ItemStack item) {
-            StringBuilder key = new StringBuilder(item.getType().toString());
-
-            if (item.hasItemMeta()) {
-                ItemMeta meta = item.getItemMeta();
-
-                // custom display name
-                if (meta.hasDisplayName()) {
-                    key.append("|name=").append(meta.getDisplayName());
-                }
-
-                // meta (enchants, lore, potion, book, etc.)
-                key.append("|meta=").append(meta.serialize().toString());
-
-                // lodestone compass
-                if (meta instanceof CompassMeta cm && cm.hasLodestone()) {
-                    Location loc = cm.getLodestone();
-                    key.append("|lodestone=")
-                            .append(loc.getWorld().getName())
-                            .append("@")
-                            .append(loc.getBlockX()).append(",")
-                            .append(loc.getBlockY()).append(",")
-                            .append(loc.getBlockZ());
-                }
-
-                // map id
-                if (meta instanceof MapMeta mm) {
-                    key.append("|mapId=").append(mm.getMapId());
-                }
-            }
-
-            return key.toString();
+        try {
+            yaml.save(playerDataFile);
+        } catch (IOException e) {
+            getLogger().log(Level.SEVERE, "Could not save player data!", e);
         }
+    }
 
-        private String getItemSortName(ItemStack item) {
-            ItemMeta meta = item.getItemMeta();
-            if (meta != null && meta.hasDisplayName()) {
-                return meta.getDisplayName();
+    private void loadPlayerDataAsync() {
+        Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+            if (!playerDataFile.exists()) return;
+            YamlConfiguration yaml = YamlConfiguration.loadConfiguration(playerDataFile);
+            ConfigurationSection section = yaml.getConfigurationSection("players");
+            if (section == null) return;
+
+            for (String uuidStr : section.getKeys(false)) {
+                try {
+                    UUID uuid = UUID.fromString(uuidStr);
+
+                    // Migrate from old format: "enabled" -> "chestEnabled"
+                    boolean chestEnabled;
+                    if (section.contains(uuidStr + ".chestEnabled")) {
+                        chestEnabled = section.getBoolean(uuidStr + ".chestEnabled", false);
+                    } else {
+                        chestEnabled = section.getBoolean(uuidStr + ".enabled", false);
+                    }
+
+                    String chestClickStr = section.getString(uuidStr + ".chestClickType",
+                            section.getString(uuidStr + ".clickType", "SHIFT_RIGHT"));
+                    ClickType chestClick = parseClickType(chestClickStr);
+
+                    boolean eqEnabled = section.getBoolean(uuidStr + ".eqEnabled", false);
+                    String eqClickStr = section.getString(uuidStr + ".eqClickType", "SHIFT_RIGHT");
+                    ClickType eqClick = parseClickType(eqClickStr);
+
+                    playerData.put(uuid, new PlayerSortData(chestEnabled, chestClick, eqEnabled, eqClick));
+                } catch (IllegalArgumentException e) {
+                    getLogger().warning("Invalid UUID in playerdata: " + uuidStr);
+                }
             }
-            return item.getType().toString();
+            getLogger().info("Loaded " + playerData.size() + " player settings.");
+        });
+    }
+
+    private ClickType parseClickType(String str) {
+        ClickType click;
+        try {
+            click = ClickType.valueOf(str);
+        } catch (IllegalArgumentException e) {
+            click = defaultClickType;
+        }
+        if (!VALID_CLICK_TYPES.contains(click)) {
+            click = defaultClickType;
+        }
+        return click;
+    }
+
+    // --- Player sort data ---
+
+    static class PlayerSortData {
+        volatile boolean chestEnabled;
+        volatile ClickType chestClickType;
+        volatile boolean eqEnabled;
+        volatile ClickType eqClickType;
+
+        PlayerSortData(boolean chestEnabled, ClickType chestClickType, boolean eqEnabled, ClickType eqClickType) {
+            this.chestEnabled = chestEnabled;
+            this.chestClickType = chestClickType;
+            this.eqEnabled = eqEnabled;
+            this.eqClickType = eqClickType;
         }
     }
 }
